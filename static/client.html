@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC"
+      crossorigin="anonymous"
+    />
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      let socket = io();
+      let msg = "오류입니다.";
+
+      //몇명 접속했는지 알려주기
+      socket.on("num_people", (count) => {
+        document.getElementById("num_people").innerHTML =
+          count + "명이 접속했습니다.";
+      });
+      socket.on("user_id", (user_id) => {
+        document.getElementById("name").innerHTML = user_id;
+      });
+
+      //두명 접속했을 경우 (버튼활성화  )
+      socket.on("two_people", () => {
+        disable_false();
+        socket.emit("ready");
+      });
+
+      socket.on("check_player", () => {
+        //이부분 다시 확인
+        document.getElementById("wait").innerHTML = "";
+        document.getElementById("countdown").remove();
+        let newP = document.createElement("p");
+        newP.setAttribute("id", "countdown");
+        document.getElementById("div_count").appendChild(newP);
+        let timeleft = 5;
+        let downloadTimer = setInterval(function () {
+          if (timeleft <= 0) {
+            clearInterval(downloadTimer);
+            //5초 끝나면 2명인지 확인
+            let p_name = document.getElementById("name").innerHTML;
+            socket.emit("istwo?", p_name);
+            document.getElementById("countdown").innerHTML =
+              "상대방을 기다려주세요..";
+
+            disable_true();
+          } else {
+            document.getElementById("countdown").innerHTML =
+              timeleft + "초 후에도 나가지 않으면 다시 게임이 시작됩니다.";
+          }
+          timeleft -= 1;
+        }, 1000);
+      });
+
+      //게임 시작
+      socket.on("gameStart", () => {
+        document.getElementById("countdown").innerHTML = "게임을 시작합니다.";
+        disable_false();
+        document.getElementById("your_choose").innerHTML = "";
+        document
+          .getElementById("your_choose")
+          .setAttribute("style", "display: inline");
+        let p_name = document.getElementById("name").innerHTML;
+
+        //카운트다운
+        let timeleft = 10;
+        let downloadTimer = setInterval(function () {
+          socket.on("stop_count", () => {
+            timeleft = 0;
+            document.getElementById("countdown").innerHTML = "<br/>";
+          });
+          if (timeleft <= 0) {
+            clearInterval(downloadTimer);
+            //if(버튼이 클릭되는 상황이면 랜덤으로 하나 보내기)
+            if (document.getElementById("rock").disabled == false) {
+              disable_true();
+              let arr = ["rock", "scissors", "paper"];
+              let btn_id = arr[Math.floor(Math.random() * arr.length)];
+              socket.emit("select_btn", p_name, btn_id);
+              document.getElementById("your_choose").innerHTML =
+                btn_id + "이 랜덤선택됨.";
+              document
+                .getElementById("your_choose")
+                .setAttribute("style", "display: inline; border: 1px solid");
+            }
+            disable_true();
+          } else {
+            document.getElementById("countdown").innerHTML =
+              timeleft + " 초 남았습니다. 선택해주세요!";
+          }
+          timeleft -= 1;
+        }, 1000);
+      });
+
+      //두명 아닐경우 (버튼 비활성화)
+      socket.on("btn_disable", () => {
+        disable_true();
+      });
+
+      //버튼 활성화
+      const disable_false = () => {
+        document.getElementById("rock").disabled = false;
+        document.getElementById("scissors").disabled = false;
+        document.getElementById("paper").disabled = false;
+      };
+      //버튼 비활성화
+      const disable_true = () => {
+        document.getElementById("rock").disabled = true;
+        document.getElementById("scissors").disabled = true;
+        document.getElementById("paper").disabled = true;
+      };
+
+      //비겼을때
+      socket.on("result_draw", (p1_select, p2_select) => {
+        let ptag = document.getElementById("drawcount");
+        let n = parseInt(ptag.innerHTML);
+        ptag.innerHTML = n + 1;
+
+        let log = document.getElementById("result");
+        let message = document.createElement("p");
+        let node = document.createTextNode("비겼습니다.");
+        message.appendChild(node);
+        log.appendChild(message);
+        let p_name = document.getElementById("name").innerHTML;
+        socket.emit("end", p_name);
+      });
+
+      //이겼을때
+      socket.on("result_win", (p1_select, p2_select) => {
+        let ptag = document.getElementById("wincount");
+        let n = parseInt(ptag.innerHTML);
+        ptag.innerHTML = n + 1;
+        let log = document.getElementById("result");
+        let message = document.createElement("p");
+        let node = document.createTextNode("당신이 이겼습니다.");
+        message.appendChild(node);
+        log.appendChild(message);
+        let p_name = document.getElementById("name").innerHTML;
+        socket.emit("end", p_name);
+      });
+
+      //졌을때
+      socket.on("result_lose", (p1_select, p2_select) => {
+        let ptag = document.getElementById("losecount");
+        let n = parseInt(ptag.innerHTML);
+        ptag.innerHTML = n + 1;
+
+        let log = document.getElementById("result");
+        let message = document.createElement("p");
+        let node = document.createTextNode("당신이 졌습니다.");
+        message.appendChild(node);
+        log.appendChild(message);
+        let p_name = document.getElementById("name").innerHTML;
+        socket.emit("end", p_name);
+      });
+
+      //버튼 온클릭
+      function select_btn(id) {
+        let btn_id = id;
+        let p_name = document.getElementById("name").innerHTML;
+        socket.emit("select_btn", p_name, btn_id);
+        document.getElementById("your_choose").innerHTML = id;
+        document
+          .getElementById("your_choose")
+          .setAttribute("style", "display: inline; border: 1px solid");
+        disable_true();
+        document.getElementById("wait").innerHTML = "상대방을 기다려주세요";
+      }
+    </script>
+  </head>
+
+  <body>
+    <div class="container-fluid">
+      <div class="row">
+        <div class="col"></div>
+
+        <div class="col -9 col-md-8">
+          <div style="text-align: center">
+            <img src="/img/a.png" alt="로고" width="80%" />
+            <h4 id="num_people" style="text-align: center">
+              1명이 접속했습니다.
+            </h4>
+            <p style="text-align: center; display: inline-block">내 아이디 :</p>
+            <p
+              class="fs-3"
+              style="text-align: center; display: inline-block"
+              id="name"
+            >
+              플레이어 이름 표시되는 곳
+            </p>
+          </div>
+          <div style="border: 1px solid">
+            <div style="display: inline">Win :</div>
+            <div id="wincount" style="display: inline-block">0</div>
+            <br />
+            <div style="display: inline">Draw :</div>
+            <div id="drawcount" style="display: inline-block">0</div>
+            <br />
+            <div style="display: inline">Lose :</div>
+            <div id="losecount" style="display: inline-block">0</div>
+          </div>
+          <div style="text-align: center">
+            <button
+              class="btn btn-warning"
+              id="rock"
+              style="font-size: 0.9em"
+              onclick="select_btn(this.id)"
+              disabled
+            >
+              Rock
+            </button>
+            <button
+              class="btn btn-warning"
+              id="paper"
+              style="font-size: 0.9em"
+              onclick="select_btn(this.id)"
+              disabled
+            >
+              Paper
+            </button>
+            <button
+              class="btn btn-warning"
+              id="scissors"
+              style="font-size: 0.9em"
+              onclick="select_btn(this.id)"
+              disabled
+            >
+              Scissors
+            </button>
+            <br />
+            <p style="display: inline">당신의 선택</p>
+            <p id="your_choose" class="fs-4" style="display: inline"></p>
+          </div>
+          <div id="wait" style="text-align: center"></div>
+          <div id="div_count" style="text-align: center">
+            <p id="countdown"></p>
+          </div>
+
+          <div id="result"></div>
+        </div>
+
+        <div class="col"></div>
+      </div>
+    </div>
+  </body>
+</html>
